@@ -361,6 +361,10 @@ class DialectGaia(DialectMozilla):
     name = "gaia"
     delimiters = [u"="]
 
+@register_dialect
+class DialectGwt(DialectJava):
+    name = "gwt"
+    delimiters = [u"="]
 
 @register_dialect
 class DialectSkype(Dialect):
