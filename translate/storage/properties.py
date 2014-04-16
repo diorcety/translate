@@ -656,6 +656,16 @@ class javautf8file(propfile):
         super(javautf8file, self).__init__(*args, **kwargs)
 
 
+class gwtfile(propfile):
+    Name = "Gwt Properties"
+    Extensions = ['properties']
+
+    def __init__(self, *args, **kwargs):
+        kwargs['personality'] = "gwt"
+        kwargs['encoding'] = "utf-8"
+        super(gwtfile, self).__init__(*args, **kwargs)
+
+
 class stringsfile(propfile):
     Name = "OS X Strings"
     Extensions = ['strings']
