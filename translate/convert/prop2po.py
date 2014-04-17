@@ -187,10 +187,9 @@ class prop2po:
         }
 
         class Variants(object):
-            variants = {}
-            unit = None
             def __init__(self, unit):
                 self.unit = unit
+                self.variants = {}
 
         from translate.lang import data
         import re
@@ -226,7 +225,7 @@ class prop2po:
             if not variant:
                 raise Exception("Variant invalid: %s" % (old_variant))
             if variant in plurals[key].variants:
-                logger.warn("Override %s[%s] " % (key, variant))
+                logger.warn("Override %s[%s]: %s by %s" % (key, variant, str(plurals[key].variants[variant]), str(unit)))
 
             # Put the unit
             plurals[key].variants[variant] = unit
