@@ -115,11 +115,15 @@ Name and Value pairs:
 """
 
 import re
+import logging
 
 from translate.lang import data
 from translate.misc import quote
 from translate.misc.deprecation import deprecated
 from translate.storage import base
+from translate.misc.multistring import multistring
+
+logger = logging.getLogger(__name__)
 
 
 labelsuffixes = (".label", ".title")
@@ -325,6 +329,18 @@ class Dialect(object):
         """Strip unneeded characters from the value"""
         return value.lstrip()
 
+    @classmethod
+    def get_key_cldr_name(cls, key):
+        return (key, "other")
+
+    @classmethod
+    def get_cldr_names_order(cls):
+        return ["other"]
+
+    @classmethod
+    def get_key(cls, key, variant):
+        return u"%s[%s]" % (key, variant)
+
 
 @register_dialect
 class DialectJava(Dialect):
@@ -363,8 +379,49 @@ class DialectGaia(DialectMozilla):
 
 @register_dialect
 class DialectGwt(DialectJava):
+    regex = re.compile(r'([^\[\]]*)(?:\[(.*)\])?')
     name = "gwt"
+    default_encoding = "utf-8"
     delimiters = [u"="]
+
+    gwt_plural_categories = [
+        ('', "other"),
+        ('none', "zero"),
+        ('one', 'one'),
+        ('two', 'two'),
+        ('few', 'few'),
+        ('many', 'many'),
+    ]
+
+    gwt2cldr = dict(gwt_plural_categories)
+    cldr2gwt = {v:k for k, v in gwt2cldr.items()}
+
+    @classmethod
+    def get_key_cldr_name(cls, key):
+        match = cls.regex.match(key)
+        key = match.group(1)
+        variant = match.group(2)
+        if not variant:
+            variant = ""
+
+        variant = cls.gwt2cldr.get(variant)
+        # Some sanity checks
+        if not variant:
+            raise Exception("Key \"%s\" variant \"%s\" is invalid" % (key, variant))
+        return (key, variant)
+
+    @classmethod
+    def get_cldr_names_order(cls):
+        return [y for x,y in cls.gwt_plural_categories]
+
+    @classmethod
+    def get_key(cls, key, variant):
+        variant = cls.cldr2gwt.get(variant)
+
+        # Some sanity checks
+        if not variant:
+            raise Exception("Key \"%s\" variant \"%s\" is invalid" % (key, variant))
+        return u"%s[%s]" % (key, variant)
 
 @register_dialect
 class DialectSkype(Dialect):
@@ -412,6 +469,176 @@ class DialectStrings(Dialect):
     @classmethod
     def encode(cls, string, encoding=None):
         return string.replace("\n", r"\n").replace("\t", r"\t")
+
+
+class proppluralunit(base.TranslationUnit):
+    """An element of a properties file i.e. a name and value, and any
+    comments associated."""
+
+    def __init__(self, source="", personality="java"):
+        """Construct a blank propunit."""
+        self.personality = get_dialect(personality)
+        super(proppluralunit, self).__init__(source)
+        self.units = {}
+        self.name = u""
+
+    @staticmethod
+    def _get_language_mapping(lang):
+        if lang:
+            langdata = data.get_language(lang)
+            if langdata:
+                (fullname, nplurals, pluralequation, cldr_mapping) = langdata
+                if len(cldr_mapping) > 0:
+                    return cldr_mapping
+                else:
+                    return ["other"]
+        return None
+
+    def _get_target_mapping(self):
+        cldr_mapping = proppluralunit._get_language_mapping(self._store.targetlanguage)
+        if cldr_mapping:
+            return cldr_mapping
+        else:
+            return self._get_source_mapping()
+
+    def _get_source_mapping(self):
+        cldr_mapping = proppluralunit._get_language_mapping(self._store.sourcelanguage)
+        if cldr_mapping:
+            return cldr_mapping
+        else:
+            return self.units.keys()
+
+    def _get_units(self, mapping):
+        list = []
+        if len(self.units) > 1:
+            for name in mapping:
+                if not name in self.units:
+                    unit = propunit("", self.personality.name)
+                    unit.name = self.personality.get_key(self.name, name)
+                    self.units[name] = unit
+                list.append(self.units[name])
+        else:
+            list.append(self.units["other"])
+        return list
+
+    def _get_source_units(self):
+        return self._get_units(self._get_source_mapping())
+
+    def _get_target_units(self):
+        return self._get_units(self._get_target_mapping())
+
+    def _get_ordered_units(self):
+        mapping = self._get_target_mapping()
+        names = []
+        for name in self.personality.get_cldr_names_order():
+            if name in mapping:
+                names.append(name)
+        return self._get_units(names)
+
+    def _get_multistring(self, ll):
+        if len(ll) > 1:
+            return multistring(ll)
+        else:
+            return ll[0]
+
+    def hasplural(self):
+        return len(self.units) > 1
+
+    def settarget(self, text):
+        if isinstance(text, multistring):
+            strings = text.strings
+        elif isinstance(text, list):
+            strings = text
+        else:
+            strings = [text]
+        pass
+
+        units = self._get_target_units()
+        if len(strings) > 1:
+            if len(strings) != len(units):
+                raise Exception("Not same plural counts")
+            for a, b in zip(strings, units):
+                b.target = a
+
+        else:
+            units[0].target = strings[0]
+
+    def gettarget(self):
+        return self._get_multistring([x.target for x in self._get_target_units()])
+
+    target = property(gettarget, settarget)
+
+    def getsource(self):
+        return self._get_multistring([x.source for x in self._get_source_units()])
+
+    def setsource(self, source):
+        pass
+
+    source = property(getsource, setsource)
+
+    def getvalue(self):
+        return self._get_multistring([x.value for x in self._get_source_units()])
+
+    def setvalue(self, source):
+        pass
+
+    value = property(getvalue, setvalue)
+
+    def getcomments(self):
+        result = []
+        [result.extend(x.comments) for x in self._get_source_units()]
+        return result
+
+    def setcomments(self, source):
+        pass
+
+    comments = property(getcomments, setcomments)
+
+    def getnotes(self, origin=None):
+        return self._get_multistring([x.getnotes(origin) for x in self._get_source_units()])
+
+    def getlocations(self):
+        return [x.name for x in self._get_source_units()]
+
+    def add_unit(self, unit, variant):
+        if variant in self.units:
+            logger.warn("Already defined entry variant %s for key %i" % (self.units[variant].name, variant))
+            return
+        self.units[variant] = unit
+
+    def isblank(self):
+        """returns whether this is a blank element, containing only
+        comments."""
+        return not (self.name or self.value)
+
+    def istranslatable(self):
+        return bool(self.name)
+
+    def getid(self):
+        return self.name
+
+    def setid(self, value):
+        self.name = value
+
+    def __str__(self):
+        """Convert to a string. Double check that unicode is handled
+        somehow here."""
+        source = self.getoutput()
+        assert isinstance(source, unicode)
+        return source.encode(self.encoding)
+
+    def getoutput(self):
+        ret = u""
+        for x in self._get_ordered_units():
+            ret += x.getoutput()
+        return ret
+
+    @property
+    def encoding(self):
+        if self._store:
+            return self._store.encoding
+        else:
+            return self.personality.default_encoding
 
 
 class propunit(base.TranslationUnit):
@@ -627,6 +854,28 @@ class propfile(base.TranslationStore):
         # see if there is a leftover one...
         if inmultilinevalue or len(newunit.comments) > 0:
             self.addunit(newunit)
+
+        self.fold()
+
+    def fold(self):
+        old_units = self.units
+        self.units = []
+        plurals = {}
+        for unit in old_units:
+            if not unit.istranslatable():
+                self.addunit(unit)
+                continue
+            (key, variant) = self.personality.get_key_cldr_name(unit.name)
+            if not key in plurals:
+                # Generate fake unit for each keys
+                new_unit = proppluralunit("", self.personality.name)
+                new_unit.name = key
+                self.addunit(new_unit)
+                plurals[key] = new_unit
+
+            # Put the unit
+            plurals[key].add_unit(unit, variant)
+
 
     def __str__(self):
         """Convert the units back to lines."""

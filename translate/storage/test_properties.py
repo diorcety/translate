@@ -100,6 +100,43 @@ class TestPropUnit(test_monolingual.TestMonolingualUnit):
         pass
 
 
+class TestGwtProp(test_monolingual.TestMonolingualStore):
+    StoreClass = properties.propfile
+
+    def propparse(self, propsource, personality="gwt", encoding=None):
+        """helper that parses properties source without requiring files"""
+        dummyfile = wStringIO.StringIO(propsource)
+        propfile = properties.propfile(dummyfile, personality, encoding)
+        return propfile
+
+    def propregen(self, propsource):
+        """helper that converts properties source to propfile object and back"""
+        return str(self.propparse(propsource))
+
+    def test_simpledefinition(self):
+        """checks that a simple properties definition is parsed correctly"""
+        propsource = 'test_me=I can code!'
+        propfile = self.propparse(propsource)
+        assert len(propfile.units) == 1
+        propunit = propfile.units[0]
+        assert propunit.name == "test_me"
+        assert propunit.source == "I can code!"
+
+    def test_doubledefinition(self):
+        """checks that a double properties definition is parsed correctly"""
+        propsource = 'test_me=I can code!\ntest_me[one]=I can code single!'
+        propfile = self.propparse(propsource)
+        assert len(propfile.units) == 1
+        propunit = propfile.units[0]
+        assert propunit.name == "test_me"
+        assert propunit.source.strings == ["I can code!", "I can code single!"]
+
+    def test_doubledefinition_source(self):
+        """checks that a double properties definition can be regenerated as source"""
+        propsource = 'test_me=I can code!\ntest_me[one]=I can code single!'
+        propregen = self.propregen(propsource)
+        assert propsource + '\n' == propregen
+
 class TestProp(test_monolingual.TestMonolingualStore):
     StoreClass = properties.propfile
 
