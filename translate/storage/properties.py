@@ -394,7 +394,7 @@ class DialectGwt(DialectJava):
     ]
 
     gwt2cldr = dict(gwt_plural_categories)
-    cldr2gwt = {v:k for k, v in gwt2cldr.items()}
+    cldr2gwt = dict((v,k) for k, v in gwt2cldr.iteritems())
 
     @classmethod
     def get_key_cldr_name(cls, key):
