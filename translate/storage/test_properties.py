@@ -103,10 +103,18 @@ class TestPropUnit(test_monolingual.TestMonolingualUnit):
 class TestGwtProp(test_monolingual.TestMonolingualStore):
     StoreClass = properties.propfile
 
-    def propparse(self, propsource, personality="gwt", encoding=None):
+    def propparse(self, propsource, personality="gwt", encoding=None, sourcelanguage = None, targetlanguage = None):
         """helper that parses properties source without requiring files"""
         dummyfile = wStringIO.StringIO(propsource)
-        propfile = properties.propfile(dummyfile, personality, encoding)
+        propfile = properties.propfile(None, personality, encoding)
+        if sourcelanguage:
+            propfile.sourcelanguage = sourcelanguage
+        if targetlanguage:
+            propfile.targetlanguage = targetlanguage
+        propsrc = dummyfile.read()
+        dummyfile.close()
+        propfile.parse(propsrc)
+        propfile.makeindex()
         return propfile
 
     def propregen(self, propsource):
@@ -136,6 +144,19 @@ class TestGwtProp(test_monolingual.TestMonolingualStore):
         propsource = 'test_me=I can code!\ntest_me[one]=I can code single!'
         propregen = self.propregen(propsource)
         assert propsource + '\n' == propregen
+
+    def test_reduce(self):
+        """checks that if the target language has less plural form the generated properties file is correct """
+        propsource = 'test_me=I can code!\ntest_me[one]=I can code single!'
+        propfile = self.propparse(propsource, "gwt", None, "en", "ja") # Only "other" plural form
+        assert 'test_me=I can code!\n' == str(propfile)
+
+    def test_increase(self):
+        """checks that if the target language has more plural form the generated properties file is correct """
+        propsource = 'test_me=I can code!\ntest_me[one]=I can code single!'
+        propfile = self.propparse(propsource, "gwt", None, "en", "ar") # All plural forms
+        assert 'test_me=I can code!\ntest_me[none]=\ntest_me[one]=I can code single!\n' + \
+               'test_me[two]=\ntest_me[few]=\ntest_me[many]=\n' == str(propfile)
 
 class TestProp(test_monolingual.TestMonolingualStore):
     StoreClass = properties.propfile
