@@ -148,13 +148,13 @@ class TestGwtProp(test_monolingual.TestMonolingualStore):
     def test_reduce(self):
         """checks that if the target language has less plural form the generated properties file is correct """
         propsource = 'test_me=I can code!\ntest_me[one]=I can code single!'
-        propfile = self.propparse(propsource, "gwt", None, "en", "ja") # Only "other" plural form
+        propfile = self.propparse(propsource, "gwt", None, "en", "ja")  # Only "other" plural form
         assert 'test_me=I can code!\n' == str(propfile)
 
     def test_increase(self):
         """checks that if the target language has more plural form the generated properties file is correct """
         propsource = 'test_me=I can code!\ntest_me[one]=I can code single!'
-        propfile = self.propparse(propsource, "gwt", None, "en", "ar") # All plural forms
+        propfile = self.propparse(propsource, "gwt", None, "en", "ar")  # All plural forms
         assert 'test_me=I can code!\ntest_me[none]=\ntest_me[one]=I can code single!\n' + \
                'test_me[two]=\ntest_me[few]=\ntest_me[many]=\n' == str(propfile)
 

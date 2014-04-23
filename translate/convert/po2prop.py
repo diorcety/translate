@@ -160,7 +160,7 @@ class reprop:
             location = unit.getlocations()[0]
             for category, text in zip(names, unit.target.strings):
                 new_unit = self.inputstore.addsourceunit(u"fish")  # not used
-                if category <> '':
+                if category != '':
                     new_location = '%s[%s]' % (location, category)
                 else:
                     new_location = '%s' % (location)

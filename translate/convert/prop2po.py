@@ -238,14 +238,14 @@ class prop2po:
             units = []
             for name in names:
                 if name in plural.variants:
-                   unit = plural.variants[name]
-                   unit.target = unit.source
-                   units.append(unit)
+                    unit = plural.variants[name]
+                    unit.target = unit.source
+                    units.append(unit)
             # Replace the sources by good ones
             if "one" in plural.variants and len(units) > 0:
-               units[0].source = plural.variants["one"].source
+                units[0].source = plural.variants["one"].source
             if "other" in plural.variants and len(units) > 1:
-               units[1].source = plural.variants["other"].source
+                units[1].source = plural.variants["other"].source
 
             # Create the plural unit
             new_unit = _collapse2(plural.unit, units)
