@@ -524,8 +524,6 @@ class proppluralunit(base.TranslationUnit):
 
     def _get_strings(self, strings, mapping):
         ret = OrderedDict()
-        if len(strings) > len(mapping):
-            raise Exception("More strings than plural form counts")
         if len(strings) > 1:
             for i, name in enumerate(mapping):
                 if i < len(strings):
