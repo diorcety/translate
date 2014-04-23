@@ -473,9 +473,9 @@ class DialectStrings(Dialect):
 
 
 class proppluralunit(base.TranslationUnit):
+    KEY = 'other'
     """An element of a properties file i.e. a name and value, and any
     comments associated."""
-
     def __init__(self, source="", personality="java"):
         """Construct a blank propunit."""
         self.personality = get_dialect(personality)
@@ -492,7 +492,7 @@ class proppluralunit(base.TranslationUnit):
                 if len(cldr_mapping) > 0:
                     return cldr_mapping
                 else:
-                    return ["other"]
+                    return [proppluralunit.KEY]
         return None
 
     def _get_target_mapping(self):
@@ -509,8 +509,9 @@ class proppluralunit(base.TranslationUnit):
         else:
             return self.units.keys()
 
-    def _get_units(self, mapping):
-        ret = OrderedDict()
+    def _get_units(self, mapping, ret = None):
+        if not ret:
+            ret = OrderedDict()
         if len(self.units) > 1:
             for name in mapping:
                 if not name in self.units:
@@ -519,11 +520,12 @@ class proppluralunit(base.TranslationUnit):
                     self.units[name] = unit
                 ret[name] = self.units[name]
         else:
-            ret["other"] = self.units["other"]
+            ret[proppluralunit.KEY] = self.units[proppluralunit.KEY]
         return ret
 
-    def _get_strings(self, strings, mapping):
-        ret = OrderedDict()
+    def _get_strings(self, strings, mapping, ret = None):
+        if not ret:
+            ret = OrderedDict()
         if len(strings) > 1:
             for i, name in enumerate(mapping):
                 if i < len(strings):
@@ -531,23 +533,25 @@ class proppluralunit(base.TranslationUnit):
                 else:
                     ret[name] = u""
         else:
-            ret["other"] = strings[0]
+            ret[proppluralunit.KEY] = strings[0]
         return ret
 
 
     def _get_source_units(self):
-        return self._get_units(self._get_source_mapping())
+        # The first item of the list is the identifier
+        # "other" is the only common form. We MUST set it first
+        ret = OrderedDict()
+        ret[proppluralunit.KEY] = u""
+        return self._get_units(self._get_source_mapping(), ret)
 
     def _get_target_units(self):
         return self._get_units(self._get_target_mapping())
-
-    def _get_source_strings(self, strings):
-        return self._get_strings(strings, self._get_source_mapping())
 
     def _get_target_strings(self, strings):
         return self._get_strings(strings, self._get_target_mapping())
 
     def _get_ordered_units(self):
+        # Used for str (GWT order)
         mapping = self._get_target_mapping()
         names = []
         for name in self.personality.get_cldr_names_order():
@@ -584,7 +588,8 @@ class proppluralunit(base.TranslationUnit):
     target = property(gettarget, settarget)
 
     def getsource(self):
-        return self._get_multistring([x.source for x in self._get_source_units().values()])
+        units = self._get_source_units()
+        return multistring(units[proppluralunit.KEY].source)
 
     def setsource(self, source):
         if isinstance(source, multistring):
@@ -593,43 +598,46 @@ class proppluralunit(base.TranslationUnit):
             strings = source
         else:
             strings = [source]
-
-        strings = self._get_source_strings(strings)
         units = self._get_source_units()
-        for form in strings:
-            if form in units:
-                units[form].source = strings[form]
+        units[proppluralunit.KEY].source = strings[0]
 
     source = property(getsource, setsource)
 
     def getvalue(self):
-        return self._get_multistring([x.value for x in self._get_source_units().values()])
+        units = self._get_source_units()
+        return multistring(units[proppluralunit.KEY].value)
 
-    def setvalue(self, source):
-        pass
+    def setvalue(self, value):
+        if isinstance(value, multistring):
+            strings = value.strings
+        elif isinstance(value, list):
+            strings = value
+        else:
+            strings = [value]
+        units = self._get_source_units()
+        units[proppluralunit.KEY].value = strings[0]
 
     value = property(getvalue, setvalue)
 
     def getcomments(self):
-        result = []
-        [result.extend(x.comments) for x in self._get_source_units().values()]
-        return result
+        units = self._get_source_units()
+        return units[proppluralunit.KEY].comments
 
-    def setcomments(self, source):
-        pass
+    def setcomments(self, comments):
+        units = self._get_source_units()
+        units[proppluralunit.KEY].comments = comments
 
     comments = property(getcomments, setcomments)
 
     def getnotes(self, origin=None):
-        return self._get_multistring([x.getnotes(origin) for x in self._get_source_units().values()])
+        units = self._get_source_units()
+        return units[proppluralunit.KEY].getnotes(origin)
 
     def getlocations(self):
-        return [x.name for x in self._get_source_units().values()]
+        units = self._get_source_units()
+        return units[proppluralunit.KEY].getlocations()
 
     def add_unit(self, unit, variant):
-        if variant in self.units:
-            logger.warn("Already defined entry variant %s for key %i" % (self.units[variant].name, variant))
-            return
         self.units[variant] = unit
 
     def isblank(self):
