@@ -474,8 +474,7 @@ class DialectStrings(Dialect):
 
 class proppluralunit(base.TranslationUnit):
     KEY = 'other'
-    """An element of a properties file i.e. a name and value, and any
-    comments associated."""
+
     def __init__(self, source="", personality="java"):
         """Construct a blank propunit."""
         self.personality = get_dialect(personality)
@@ -500,7 +499,7 @@ class proppluralunit(base.TranslationUnit):
         if cldr_mapping:
             return cldr_mapping
         else:
-            return self._get_source_mapping()
+            return self.units.keys()
 
     def _get_source_mapping(self):
         cldr_mapping = proppluralunit._get_language_mapping(self._store.sourcelanguage)
@@ -509,46 +508,35 @@ class proppluralunit(base.TranslationUnit):
         else:
             return self.units.keys()
 
-    def _get_units(self, mapping, ret = None):
-        if not ret:
-            ret = OrderedDict()
+    def _get_units(self, mapping):
+        ret = []
         if len(self.units) > 1:
             for name in mapping:
                 if not name in self.units:
                     unit = propunit("", self.personality.name)
                     unit.name = self.personality.get_key(self.name, name)
                     self.units[name] = unit
-                ret[name] = self.units[name]
+                ret.append(self.units[name])
         else:
-            ret[proppluralunit.KEY] = self.units[proppluralunit.KEY]
+            ret.append(self.units[proppluralunit.KEY])
         return ret
 
-    def _get_strings(self, strings, mapping, ret = None):
-        if not ret:
-            ret = OrderedDict()
+    def _get_strings(self, strings, mapping):
+        ret = []
         if len(strings) > 1:
             for i, name in enumerate(mapping):
                 if i < len(strings):
-                    ret[name] = strings[i]
+                    ret.append(strings[i])
                 else:
-                    ret[name] = u""
+                    ret.append(u"")
         else:
-            ret[proppluralunit.KEY] = strings[0]
+            ret.append(strings[0])
         return ret
 
 
-    def _get_source_units(self):
-        # The first item of the list is the identifier
-        # "other" is the only common form. We MUST set it first
-        ret = OrderedDict()
-        ret[proppluralunit.KEY] = u""
-        return self._get_units(self._get_source_mapping(), ret)
-
-    def _get_target_units(self):
-        return self._get_units(self._get_target_mapping())
-
-    def _get_target_strings(self, strings):
-        return self._get_strings(strings, self._get_target_mapping())
+    def _get_source_unit(self):
+        self._get_units(self._get_source_mapping())  # Generate missing forms
+        return self.units[proppluralunit.KEY]
 
     def _get_ordered_units(self):
         # Used for str (GWT order)
@@ -558,12 +546,6 @@ class proppluralunit(base.TranslationUnit):
             if name in mapping:
                 names.append(name)
         return self._get_units(names)
-
-    def _get_multistring(self, ll):
-        if len(ll) > 1:
-            return multistring(ll)
-        else:
-            return ll[0]
 
     def hasplural(self):
         return len(self.units) > 1
@@ -576,20 +558,25 @@ class proppluralunit(base.TranslationUnit):
         else:
             strings = [text]
 
-        strings = self._get_target_strings(strings)
-        units = self._get_target_units()
-        for form in strings:
-            if form in units:
-                units[form].target = strings[form]
+        strings = self._get_strings(strings, self._get_target_mapping())
+        units = self._get_units(self._get_target_mapping())
+        if len(strings) != len(units):
+            raise Exception('Not same plural counts between "%s" and "%s"' % (str(strings), str(units)))
+
+        for a, b in zip(strings, units):
+            b.target = a
 
     def gettarget(self):
-        return self._get_multistring([x.target for x in self._get_target_units().values()])
+        ll = [x.target for x in self._get_units(self._get_target_mapping())]
+        if len(ll) > 1:
+            return multistring(ll)
+        else:
+            return ll[0]
 
     target = property(gettarget, settarget)
 
     def getsource(self):
-        units = self._get_source_units()
-        return multistring(units[proppluralunit.KEY].source)
+        return multistring(self._get_source_unit().source)
 
     def setsource(self, source):
         if isinstance(source, multistring):
@@ -598,14 +585,12 @@ class proppluralunit(base.TranslationUnit):
             strings = source
         else:
             strings = [source]
-        units = self._get_source_units()
-        units[proppluralunit.KEY].source = strings[0]
+        self._get_source_unit().source = strings[0]
 
     source = property(getsource, setsource)
 
     def getvalue(self):
-        units = self._get_source_units()
-        return multistring(units[proppluralunit.KEY].value)
+        return multistring(self._get_source_unit().value)
 
     def setvalue(self, value):
         if isinstance(value, multistring):
@@ -614,28 +599,25 @@ class proppluralunit(base.TranslationUnit):
             strings = value
         else:
             strings = [value]
-        units = self._get_source_units()
-        units[proppluralunit.KEY].value = strings[0]
+        self._get_source_unit().value = strings[0]
 
     value = property(getvalue, setvalue)
 
     def getcomments(self):
-        units = self._get_source_units()
-        return units[proppluralunit.KEY].comments
+        return self._get_source_unit().comments
 
     def setcomments(self, comments):
-        units = self._get_source_units()
-        units[proppluralunit.KEY].comments = comments
+        self._get_source_unit().comments = comments
 
     comments = property(getcomments, setcomments)
 
     def getnotes(self, origin=None):
-        units = self._get_source_units()
-        return units[proppluralunit.KEY].getnotes(origin)
+        return self._get_source_unit().getnotes(origin)
 
     def getlocations(self):
-        units = self._get_source_units()
-        return units[proppluralunit.KEY].getlocations()
+        return self._get_source_unit().getlocations()
+
+
 
     def add_unit(self, unit, variant):
         self.units[variant] = unit
@@ -663,7 +645,7 @@ class proppluralunit(base.TranslationUnit):
 
     def getoutput(self):
         ret = u""
-        for x in self._get_ordered_units().values():
+        for x in self._get_ordered_units():
             ret += x.getoutput()
         return ret
 
